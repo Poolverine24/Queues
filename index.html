@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Queue Simulator</title>
+<meta name="description" content="Interactive simple queue simulator: enqueue, dequeue, peek, display, isEmpty, isFull with step-by-step algorithm highlighting.">
+<style>
+  :root {
+    --bg: #0f1226; --panel: #181c38; --line: #2c3366;
+    --text: #eef0ff; --muted: #8d95c7; --dim: #4b5385;
+    --cyan: #22d3ee; --pink: #f472b6; --green: #34d399; --red: #f87171; --amber: #fbbf24; --violet: #8b6cff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.4 "Helvetica Neue", Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 20px 16px 28px; }
+  header h1 { margin: 0; font-size: 30px; display: inline; }
+  header span { color: var(--muted); margin-left: 12px; font-size: 15px; }
+  .grid { display: grid; grid-template-columns: 1fr 360px; gap: 18px; margin-top: 16px; }
+  @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+  .stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .stat { padding: 8px 18px; text-align: center; min-width: 96px; }
+  .stat small { display: block; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .05em; }
+  .stat b { font-size: 24px; }
+  #stage { width: 100%; height: 360px; display: block; }
+  #msg { min-height: 48px; margin: 12px 2px 0; font-size: 17px; font-weight: 700; }
+  .controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 10px; }
+  input { width: 84px; background: var(--panel); color: var(--text); border: 2px solid var(--line); border-radius: 10px;
+          font: 700 20px Menlo, monospace; text-align: center; padding: 8px; outline: none; }
+  input:focus { border-color: var(--violet); }
+  button { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 10px;
+           font: 700 14px "Helvetica Neue", Helvetica, Arial, sans-serif; padding: 10px 14px; cursor: pointer; }
+  button:hover { filter: brightness(1.25); }
+  button.primary { background: var(--violet); border-color: var(--violet); }
+  button.ghost { color: var(--muted); }
+  .spacer { flex: 1; }
+  .side h3 { margin: 0; padding: 12px 14px 6px; color: var(--muted); font-size: 12px; letter-spacing: .05em; }
+  pre#code { margin: 0 4px 12px; padding: 0 10px; font: 13px/1.7 Menlo, monospace; color: var(--muted); white-space: pre; overflow-x: auto; }
+  pre#code .now { background: #3b3f98; color: #fff; display: block; border-radius: 4px; }
+  .speed { display: flex; gap: 4px; align-items: center; margin: 12px 0; }
+  .speed small { color: var(--muted); font-weight: 700; margin-right: 8px; }
+  .speed button { padding: 5px 10px; font-size: 12px; }
+  .speed button.on { background: var(--violet); border-color: var(--violet); }
+  #output { padding: 2px 14px 14px; font: 700 20px Menlo, monospace; color: var(--green); word-break: break-word; }
+  #hist { list-style: none; margin: 0; padding: 0 14px 12px; font: 13px Menlo, monospace; max-height: 220px; overflow-y: auto; }
+  #hist li.ok { color: var(--green); } #hist li.err { color: var(--red); } #hist li.info { color: var(--muted); }
+  footer { color: var(--dim); margin-top: 18px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>Queue</h1><span>First In, First Out: enter at the REAR, leave from the FRONT</span></header>
+  <div class="grid">
+    <main>
+      <div class="stats">
+        <div class="card stat"><small>SIZE</small><b id="s-size">0</b></div>
+        <div class="card stat"><small>FRONT</small><b id="s-front" style="color:var(--cyan)">-1</b></div>
+        <div class="card stat"><small>REAR</small><b id="s-rear" style="color:var(--pink)">-1</b></div>
+        <div class="card stat"><small>CAPACITY</small><b id="s-cap">6</b></div>
+      </div>
+      <div class="card"><canvas id="stage"></canvas></div>
+      <div id="msg">Type a value and press Enqueue (or hit Enter).</div>
+      <div class="controls">
+        <input id="val" value="10" maxlength="4" aria-label="Value">
+        <button class="primary" data-op="enqueue">Enqueue</button>
+        <button data-op="dequeue">Dequeue</button>
+        <button data-op="peek">Peek</button>
+        <button data-op="display">Display</button>
+        <button data-op="is_empty">isEmpty</button>
+        <button data-op="is_full">isFull</button>
+        <span class="spacer"></span>
+        <button class="ghost" id="random">Random</button>
+        <button class="ghost" id="reset">Reset</button>
+      </div>
+    </main>
+    <aside class="side">
+      <div class="card"><h3 id="algo-title">ALGORITHM</h3><pre id="code"></pre></div>
+      <div class="speed"><small>SPEED</small>
+        <button data-speed="1.8">Slow</button><button data-speed="1" class="on">Normal</button><button data-speed="0.45">Fast</button>
+      </div>
+      <div class="card"><h3>OUTPUT</h3><div id="output">-</div></div>
+      <div class="card" style="margin-top:10px"><h3>HISTORY</h3><ul id="hist"></ul></div>
+    </aside>
+  </div>
+  <footer>Simple (linear array) queue, as taught in DAA. Operations: O(1) except display, which is O(n).</footer>
+</div>
+
+<script>
+const CAP = 6;
+const C = { panel:"#181c38", line:"#2c3366", text:"#eef0ff", muted:"#8d95c7", dim:"#4b5385",
+            cyan:"#22d3ee", pink:"#f472b6", green:"#34d399", red:"#f87171", amber:"#fbbf24", violet:"#8b6cff" };
+const CARD_COLORS = ["#8b6cff","#3b82f6","#06b6d4","#10b981","#f59e0b","#ec4899","#ef4444","#a855f7"];
+const ALGO = {
+  enqueue: ["START","if rear == size - 1:",'    print "Overflow"; EXIT',"rear = rear + 1",
+            "if front == -1: front = 0","queue[rear] = value","return success","END"],
+  dequeue: ["START","if front == -1 OR front > rear:",'    print "Underflow"; EXIT',"value = queue[front]",
+            "front = front + 1","if front > rear: front = rear = -1","return value","END"],
+  peek: ["START",'if empty: print "Queue is empty"',"return queue[front]","END"],
+  display: ["START","if front == -1 OR front > rear:",'    print "Queue is empty"; EXIT',
+            "for i from front to rear:","    print queue[i]","END"],
+  is_empty: ["START","return front == -1 OR front > rear","END"],
+  is_full: ["START","return rear == size - 1","END"],
+};
+const LABELS = { enqueue:"Enqueue", dequeue:"Dequeue", peek:"Peek", display:"Display", is_empty:"isEmpty", is_full:"isFull" };
+
+// ---------------- state (exactly as on the slides)
+let arr = Array(CAP).fill(null), front = -1, rear = -1;
+let cards = {}, leaving = [], colorI = 0;
+let fx = null, rx = null, shake = 0, badge = null;
+let timeline = [], busy = false, speed = 1, lastIn = "", curOp = "enqueue";
+
+const $ = id => document.getElementById(id);
+const canvas = $("stage"), ctx = canvas.getContext("2d");
+const isEmpty = () => front === -1 || front > rear;
+const isFull = () => rear === CAP - 1;
+
+function hexMix(a, b, t) {
+  const p = h => [1,3,5].map(i => parseInt(h.slice(i, i+2), 16));
+  const A = p(a), B = p(b);
+  return "#" + A.map((v, k) => Math.round(v + (B[k]-v)*t).toString(16).padStart(2,"0")).join("");
+}
+
+class Card {
+  constructor(v, color, x, y) { Object.assign(this, { value:v, color, x, y, tx:x, ty:y, s:.4, ts:1, fade:0, tfade:0, glow:0 }); }
+  step() {
+    const k = .16;
+    this.x += (this.tx-this.x)*k; this.y += (this.ty-this.y)*k; this.s += (this.ts-this.s)*k;
+    this.fade += (this.tfade-this.fade)*.12; this.glow *= .93;
+  }
+}
+
+// ---------------- geometry
+let W = 0, H = 0;
+function resize() {
+  const r = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  W = r.width; H = r.height;
+  canvas.width = W*dpr; canvas.height = H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+function geo() {
+  const gate = W < 600 ? 50 : 90;
+  const sw = Math.min(110, (W - 2*gate - 40) / CAP);
+  return { x0: (W - CAP*sw)/2, sw, y: H*.5, gate };
+}
+const slotCenter = i => { const g = geo(); return [g.x0 + (i+.5)*g.sw, g.y]; };
+const inGate = () => { const g = geo(); return [g.x0 + CAP*g.sw + g.gate*.66, g.y]; };
+const outGate = () => { const g = geo(); return [g.x0 - g.gate*.77, g.y]; };
+
+// ---------------- UI helpers
+function status(t, color) { $("msg").textContent = t; $("msg").style.color = color; }
+function output(t, color = C.green) { $("output").textContent = t; $("output").style.color = color; }
+function history(t, kind) { const li = document.createElement("li"); li.textContent = t; li.className = kind; $("hist").prepend(li); }
+function showAlgo(op, line = null) {
+  $("algo-title").textContent = "ALGORITHM  -  " + LABELS[op].toUpperCase();
+  $("code").innerHTML = ALGO[op].map((l, i) => {
+    const s = `${String(i+1).padStart(2)}  ${l}`.replace(/&/g,"&amp;").replace(/</g,"&lt;");
+    return i === line ? `<span class="now">${s}</span>` : s + "\n";
+  }).join("");
+}
+function refresh() {
+  $("s-size").textContent = isEmpty() ? 0 : rear - front + 1;
+  $("s-front").textContent = front; $("s-rear").textContent = rear; $("s-cap").textContent = CAP;
+}
+
+// ---------------- timeline: [op, line, message, colour, action, weight]
+function run(op) {
+  if (busy) { status("Wait for the current operation to finish...", C.amber); return; }
+  let v;
+  if (op === "enqueue") {
+    v = $("val").value.trim();
+    if (!v || v.length > 4) { status("Type a value (1 to 4 characters) in the box first.", C.red); $("val").focus(); return; }
+  }
+  showAlgo(op); output("-");
+  timeline = OPS[op](v); busy = true; nextBeat();
+}
+function nextBeat() {
+  if (!timeline.length) {
+    busy = false; showAlgo(curOp); refresh();
+    if (curOp === "enqueue" && /^\d+$/.test(lastIn)) $("val").value = String(+lastIn + 10);
+    return;
+  }
+  const [op, line, text, color, fn, w] = timeline.shift();
+  curOp = op; showAlgo(op, line);
+  if (text) status(text, color);
+  if (fn) fn();
+  refresh();
+  setTimeout(nextBeat, 650 * w * speed);
+}
+
+function alarm(word, v) {
+  shake = 1; badge = [word, C.red, 1]; output(word, C.red);
+  history(word + (v ? ` (${v})` : ""), "err");
+}
+function answer(a) { badge = [String(a).toUpperCase(), a ? C.green : C.red, 1]; output(String(a), a ? C.green : C.red); }
+
+const OPS = {
+  enqueue(v) {
+    lastIn = v; const E = "enqueue";
+    const beats = [[E, 0, `Enqueue ${v}: start.`, C.text, null, .6]];
+    if (isFull()) return beats.concat([
+      [E, 1, `Is rear == size - 1?   ${rear} == ${CAP-1}  ->  YES, the queue is full.`, C.amber, null, 1.2],
+      [E, 2, `OVERFLOW! No room for ${v}.`, C.red, () => alarm("OVERFLOW", v), 1.6],
+      [E, 7, "", null, null, .4]]);
+    const first = front === -1;
+    return beats.concat([
+      [E, 1, `Is rear == size - 1?   ${rear} == ${CAP-1}  ->  no, there is space.`, C.amber, null, 1.1],
+      [E, 3, `Move REAR one step right:  rear = ${rear+1}`, C.pink, () => { rear++; }, 1],
+      [E, 4, first ? "First element, so FRONT = 0 as well." : "FRONT does not change.", C.cyan,
+        () => { if (front === -1) front = 0; }, first ? .9 : .6],
+      [E, 5, `${v} enters through the IN gate into slot ${rear+1}.`, C.text, () => {
+        arr[rear] = v;
+        const c = new Card(v, CARD_COLORS[colorI++ % CARD_COLORS.length], ...inGate());
+        [c.tx, c.ty] = slotCenter(rear); cards[rear] = c;
+      }, 1.4],
+      [E, 6, `Done - ${v} added at the rear.`, C.green, () => history(`Enqueued ${v}`, "ok"), .8],
+      [E, 7, "", null, null, .3]]);
+  },
+  dequeue() {
+    const D = "dequeue";
+    const beats = [[D, 0, "Dequeue: start.", C.text, null, .6]];
+    if (isEmpty()) return beats.concat([
+      [D, 1, `Is front == -1 OR front > rear?   front = ${front}  ->  YES, empty.`, C.amber, null, 1.2],
+      [D, 2, "UNDERFLOW! There is nothing to remove.", C.red, () => alarm("UNDERFLOW"), 1.6],
+      [D, 7, "", null, null, .4]]);
+    const v = arr[front], last = front === rear;
+    return beats.concat([
+      [D, 1, `Is front == -1 OR front > rear?   (${front}, ${rear})  ->  no, not empty.`, C.amber, null, 1.1],
+      [D, 3, `Take the value at the FRONT:  queue[${front}] = ${v}`, C.cyan, () => {
+        const c = cards[front]; if (c) { c.glow = 1; c.ty -= 20; } }, 1],
+      [D, 4, `${v} leaves through the OUT gate, FRONT moves right.`, C.text, () => {
+        const c = cards[front]; delete cards[front]; arr[front] = null;
+        if (c) { [c.tx, c.ty] = outGate(); c.ts = .5; c.tfade = 1; leaving.push(c); }
+        front++; output(String(v));
+      }, 1.4],
+      [D, 5, last ? "Queue is now empty -> reset front = rear = -1." : "Still elements left, no reset.", C.muted,
+        () => { if (front > rear) front = rear = -1; }, last ? .9 : .5],
+      [D, 6, `Done - ${v} removed from the front.`, C.green, () => history(`Dequeued ${v}`, "ok"), .8],
+      [D, 7, "", null, null, .3]]);
+  },
+  peek() {
+    const P = "peek";
+    if (isEmpty()) return [[P, 0, "Peek: start.", C.text, null, .5],
+      [P, 1, "Queue is empty - nothing to see.", C.red, () => alarm("EMPTY"), 1.4], [P, 3, "", null, null, .3]];
+    const v = arr[front];
+    return [[P, 0, "Peek: start.", C.text, null, .5],
+      [P, 2, `The FRONT element is ${v}. It is NOT removed.`, C.cyan, () => { cards[front].glow = 1; output(String(v)); }, 1.5],
+      [P, 3, "", null, () => history(`Peek -> ${v}`, "ok"), .3]];
+  },
+  display() {
+    const S = "display", beats = [[S, 0, "Display: start.", C.text, null, .5]];
+    if (isEmpty()) return beats.concat([[S, 1, "front == -1 -> the queue is empty.", C.amber, null, 1],
+      [S, 2, "Queue is empty.", C.red, () => alarm("EMPTY"), 1.3], [S, 5, "", null, null, .3]]);
+    beats.push([S, 1, "Not empty, so print from FRONT to REAR.", C.amber, null, .9]);
+    const printed = [];
+    for (let i = front; i <= rear; i++) {
+      beats.push([S, 3, `i = ${i}`, C.muted, null, .45]);
+      beats.push([S, 4, `print queue[${i}] = ${arr[i]}`, C.text, () => {
+        cards[i].glow = 1; printed.push(arr[i]); output(printed.join("  ")); }, .9]);
+    }
+    beats.push([S, 5, "Done - all elements printed front to rear.", C.green, () => history("Display -> " + printed.join(" "), "ok"), .5]);
+    return beats;
+  },
+  is_empty() {
+    const a = isEmpty();
+    return [["is_empty", 0, "isEmpty: start.", C.text, null, .4],
+      ["is_empty", 1, `front == -1 OR front > rear?   front = ${front}, rear = ${rear}  ->  ${a}`, a ? C.green : C.red, () => answer(a), 1.5],
+      ["is_empty", 2, "", null, () => history(`isEmpty -> ${a}`, "ok"), .3]];
+  },
+  is_full() {
+    const a = isFull();
+    return [["is_full", 0, "isFull: start.", C.text, null, .4],
+      ["is_full", 1, `rear == size - 1?   ${rear} == ${CAP-1}  ->  ${a}`, a ? C.green : C.red, () => answer(a), 1.5],
+      ["is_full", 2, "", null, () => history(`isFull -> ${a}`, "ok"), .3]];
+  },
+};
+
+function reset() {
+  if (busy) return;
+  arr = Array(CAP).fill(null); front = rear = -1;
+  Object.values(cards).forEach(c => { c.tfade = 1; c.ts = .3; leaving.push(c); });
+  cards = {}; output("-"); refresh();
+  status("Queue reset. Everything is empty again.", C.muted); history("Reset", "info");
+}
+function randomFill() {
+  if (busy) return;
+  reset();
+  const n = 2 + Math.floor(Math.random() * (CAP - 2));
+  for (let k = 0; k < n; k++) {
+    const v = String(1 + Math.floor(Math.random() * 99));
+    rear++; front = 0; arr[rear] = v;
+    const c = new Card(v, CARD_COLORS[colorI++ % CARD_COLORS.length], ...inGate());
+    c.x += k * 50; [c.tx, c.ty] = slotCenter(rear); cards[rear] = c;
+  }
+  refresh(); status("Filled with random values.", C.muted); history("Random fill", "info");
+}
+
+// ---------------- drawing
+function rrect(x1, y1, x2, y2, r, fill, stroke, lw = 2, dash = null) {
+  ctx.beginPath(); ctx.roundRect(x1, y1, x2-x1, y2-y1, r);
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke) { ctx.setLineDash(dash || []); ctx.lineWidth = lw; ctx.strokeStyle = stroke; ctx.stroke(); ctx.setLineDash([]); }
+}
+function txt(t, x, y, color, size, bold = true, font = "Helvetica Neue, Helvetica, Arial, sans-serif") {
+  ctx.fillStyle = color; ctx.font = `${bold ? "700 " : ""}${size}px ${font}`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(t, x, y);
+}
+function tri(x, y, up, color) {
+  ctx.beginPath(); ctx.moveTo(x-11, up ? y+16 : y-16); ctx.lineTo(x+11, up ? y+16 : y-16); ctx.lineTo(x, y);
+  ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+}
+
+function frame() {
+  ctx.clearRect(0, 0, W, H);
+  if (W > 200) {
+    const { x0, sw, y, gate } = geo();
+    shake *= .9;
+    const dx = shake > .02 ? Math.sin(shake*40) * 14 * shake : 0;
+    const h = Math.min(90, sw*.9), X = x0 + dx, xe = X + CAP*sw;
+    // lane + slots
+    rrect(X-14, y-h/2-14, xe+14, y+h/2+14, 22, "#121633", C.line);
+    for (let i = 0; i < CAP; i++) {
+      const wasted = front > 0 && i < front && isFull();
+      rrect(X+i*sw+6, y-h/2, X+(i+1)*sw-6, y+h/2, 12, C.panel, wasted ? C.amber : C.line, 2, [5,4]);
+      txt(`[${i}]`, X+(i+.5)*sw, y+h/2+34, C.muted, 12, false, "Menlo, monospace");
+    }
+    // gates
+    const ox = x0 - gate*.77, ix = x0 + CAP*sw + gate*.66;
+    [[ox, "OUT", C.cyan, "leave here"], [ix, "IN", C.pink, "new values"]].forEach(([x, w, col, sub]) => {
+      rrect(x-34, y-22, x+34, y+22, 12, hexMix(col, C.panel, .82), col);
+      txt(w, x, y, col, 14); txt(sub, x, y+44, C.muted, 10, false);
+    });
+    if (front > 0 && isFull()) txt("free but cannot be reused", (X + X + front*sw)/2, y-h/2-32, C.amber, 12);
+    if (isEmpty()) txt("(queue is empty)", W/2, y-h/2-34, C.dim, 13);
+    // cards
+    const drawCard = (c, off) => {
+      const w = Math.min(90, sw*.78) * c.s, cx = c.x + off, cy = c.y;
+      if (c.glow > .05) { const g = 10*c.glow; rrect(cx-w/2-g, cy-w/2-g, cx+w/2+g, cy+w/2+g, 18, null, hexMix(C.amber, C.panel, 1-c.glow), 4); }
+      const col = hexMix(c.color, C.panel, c.fade);
+      rrect(cx-w/2, cy-w/2, cx+w/2, cy+w/2, 14, col, hexMix("#ffffff", col, .7), 1);
+      txt(c.value, cx, cy, hexMix("#ffffff", C.panel, c.fade), Math.max(9, (c.value.length <= 2 ? 24 : 18) * c.s));
+    };
+    for (const [i, c] of Object.entries(cards)) { if (!c.tfade) c.tx = x0 + (+i + .5)*sw; c.step(); drawCard(c, dx); }
+    leaving = leaving.filter(c => { c.step(); if (c.fade > .95) return false; drawCard(c, 0); return true; });
+    // pointers
+    const parked = X - gate*.77;
+    const tf = front === -1 ? parked : X + (front+.5)*sw, tr = rear === -1 ? parked : X + (rear+.5)*sw;
+    fx = fx === null ? tf : fx + (tf-fx)*.15; rx = rx === null ? tr : rx + (tr-rx)*.15;
+    const ty = y - h/2 - 22; tri(rx, ty, false, C.pink); txt(`REAR = ${rear}`, rx, ty-30, C.pink, 13);
+    const by = y + h/2 + 52; tri(fx, by, true, C.cyan); txt(`FRONT = ${front}`, fx, by+30, C.cyan, 13);
+    // badge
+    if (badge) {
+      const [t, col, life] = badge, pop = Math.min(1, (1-life)*6);
+      txt(t, W/2, 46, hexMix(col, C.panel, Math.max(0, 1 - life*1.4)), 16 + 16*pop);
+      badge[2] -= .008 / speed; if (badge[2] <= 0) badge = null;
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+// ---------------- wiring
+document.querySelectorAll("[data-op]").forEach(b => b.onclick = () => run(b.dataset.op));
+document.querySelectorAll("[data-speed]").forEach(b => b.onclick = () => {
+  speed = +b.dataset.speed;
+  document.querySelectorAll("[data-speed]").forEach(x => x.classList.toggle("on", x === b));
+});
+$("val").addEventListener("keydown", e => { if (e.key === "Enter") run("enqueue"); });
+$("reset").onclick = reset; $("random").onclick = randomFill;
+window.addEventListener("resize", resize);
+resize(); showAlgo("enqueue"); refresh(); requestAnimationFrame(frame);
+</script>
+</body>
+</html>
